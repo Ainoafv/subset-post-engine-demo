@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Post Engineering Engine — demo for Subset</title>
+<style>
+:root{--bg:#f7f7f5;--card:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e3e3e0;--accent:#2f5bea;--ok:#1f8a4c;--bad:#c2372f;--warn:#b7791f;--code:#f1f1ee}
+@media (prefers-color-scheme:dark){:root{--bg:#141416;--card:#1c1c1f;--ink:#ececee;--muted:#9a9aa2;--line:#2c2c31;--accent:#7b9bff;--ok:#4cc38a;--bad:#ff6b61;--warn:#e0a84a;--code:#232327}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,Segoe UI,Inter,Roboto,sans-serif}
+header{padding:32px 16px 8px;max-width:1150px;margin:auto}
+h1{font-size:26px;margin:0 0 6px}h2{font-size:17px;margin:0 0 10px}h3{font-size:14px;margin:14px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.sub{color:var(--muted);max-width:820px}
+.note{font-size:13px;background:var(--code);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-top:12px;display:inline-block}
+main{max-width:1150px;margin:auto;padding:8px 16px 48px;display:grid;gap:16px;grid-template-columns:1fr 1fr}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;min-width:0}
+.full{grid-column:1/-1}
+@media(max-width:860px){main{grid-template-columns:1fr}}
+textarea{width:100%;font:13px/1.5 ui-monospace,Consolas,monospace;background:var(--code);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px;resize:vertical}
+#post{font:15px/1.6 -apple-system,Segoe UI,Inter,sans-serif;min-height:250px}
+#rules{min-height:330px}
+.pill{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);margin:2px 4px 2px 0}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.stage{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 2px}.stage span{background:var(--code);border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:12px}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:7px 12px;font-weight:600;cursor:pointer}
+button.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.score{font-weight:700}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent)}
+footer{max-width:1150px;margin:auto;padding:0 16px 40px;color:var(--muted);font-size:13px}
+a{color:var(--accent)}
+.flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.claim{border-left:3px solid var(--line);padding:4px 10px;margin:6px 0;font-size:14px}
+.claim.sup{border-color:var(--ok)}.claim.uns{border-color:var(--bad)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Post Engineering Engine — working demo for Subset</h1>
+  <p class="sub">One slice of a Post Engineering Brain turned into an executable system: <b>rules live in config</b>, generation runs in <b>stages</b>, <b>deterministic validators</b> check every objectively testable rule, an <b>independent evidence-grounded reviewer</b> judges relevance and claims, and a <b>regression suite</b> shows what moves when a rule changes.</p>
+  <span class="note">Live in your browser: the rule config, the validators and the regression suite — edit the rules or the post and everything re-checks. The generation stages and the reviewer verdicts are a recorded sample run (in production they're LLM calls with schema-constrained outputs).</span>
+</header>
+
+<main>
+  <section class="card">
+    <h2>1 · Inputs</h2>
+    <h3>Ideal buyer (DNA attributes, subset)</h3>
+    <div id="buyer"></div>
+    <h3>Client expertise — evidence the post may use</h3>
+    <div id="evidence"></div>
+  </section>
+
+  <section class="card">
+    <h2>2 · Information selection (stage 1)</h2>
+    <p class="sub" style="font-size:13px">Each candidate fact is scored for importance to <i>this</i> buyer. Only facts above the threshold reach the post; every score is logged.</p>
+    <table id="selection"><thead><tr><th>Fact</th><th style="width:150px">Buyer relevance</th><th>Used</th></tr></thead><tbody></tbody></table>
+    <h3>Structure chosen (stage 2)</h3>
+    <div class="stage" id="structure"></div>
+  </section>
+
+  <section class="card">
+    <div class="flex" style="justify-content:space-between"><h2>3 · Generated post (stage 3)</h2><button class="ghost" id="reset">Reset post</button></div>
+    <p class="sub" style="font-size:13px">Slots filled under the approved structure. Claims cite evidence as [E1]–[E4]. <b>Edit it</b> — break a rule and watch the validators.</p>
+    <textarea id="post"></textarea>
+  </section>
+
+  <section class="card">
+    <h2>4 · Deterministic validators</h2>
+    <p class="sub" style="font-size:13px">Checked in code, not by a model. This is where "99.99% construction compliance" comes from.</p>
+    <div id="summary" style="margin:6px 0 10px"></div>
+    <table id="checks"><thead><tr><th>Rule</th><th>Result</th><th>Detail</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section class="card">
+    <h2>5 · Independent reviewer (evidence-grounded)</h2>
+    <p class="sub" style="font-size:13px">A separate model that never saw the generation prompt. Every claim must map to evidence; anything unsupported is flagged. Scores are calibrated against expert-reviewed examples.</p>
+    <div id="review"></div>
+  </section>
+
+  <section class="card">
+    <div class="flex" style="justify-content:space-between"><h2>6 · Rules as versioned config</h2><span class="pill" id="ver">v1.3</span></div>
+    <p class="sub" style="font-size:13px">Your team edits rules here — no code change. Try: set <code>max_hook_words</code> to 12, or add <code>"leverage"</code> to <code>banned_words</code>.</p>
+    <textarea id="rules" spellcheck="false"></textarea>
+    <div id="ruleerr" class="bad" style="font-size:13px"></div>
+  </section>
+
+  <section class="card full">
+    <div class="flex" style="justify-content:space-between"><h2>7 · Regression suite — what moved?</h2><span id="regsum"></span></div>
+    <p class="sub" style="font-size:13px">A gold set of approved posts and known-bad cases runs on every rule change. A rule edit that breaks an approved post, or lets a bad one through, shows up here before it ships.</p>
+    <table id="reg"><thead><tr><th>Case</th><th>Expected</th><th>Now</th><th>Failing rules</th><th>Status</th></tr></thead><tbody></tbody></table>
+  </section>
+</main>
+
+<footer>
+  Built by Ainoa F. (AI &amp; Data Engineer) as a demo for Subset. Technical proposal: <a href="proposal.html">proposal.html</a> · More: <a href="https://github.com/Ainoafv">github.com/Ainoafv</a>
+</footer>
+
+<script>
+const BUYER = [
+  ["Role","CFO, mid-market B2B SaaS ($20–80M ARR)"],
+  ["Commercial tension","Board wants growth; cash runway is the constraint"],
+  ["Information type they trust","Benchmarks, unit economics, named mechanisms"],
+  ["Language","Plain, numeric, no hype; distrusts vendor superlatives"],
+  ["Trigger","Quarter-end close and annual-contract renewals"]
+];
+const EVIDENCE = {
+  E1:"Client's 2026 study of 140 SaaS firms: annual prepay offers lifted cash collected in Q1 by 18% on average.",
+  E2:"In the same study, discounts above 12% for annual prepay reduced net revenue retention in year 2.",
+  E3:"The client has run billing-term redesigns for 30+ finance teams since 2021.",
+  E4:"Median time from invoice to cash in the study: 41 days monthly vs 9 days annual prepay."
+};
+const FACTS = [
+  ["Annual prepay lifted Q1 cash collected by 18% [E1]",0.94,true],
+  ["Invoice-to-cash: 41 days monthly vs 9 days prepay [E4]",0.88,true],
+  ["Discounts above 12% hurt year-2 NRR [E2]",0.83,true],
+  ["30+ finance teams advised since 2021 [E3]",0.61,true],
+  ["Client won a design award in 2024",0.12,false],
+  ["Founder's background in consulting",0.21,false]
+];
+const STRUCTURE = ["Hook: tension sentence","Context: buyer's constraint","Insight: mechanism + number","Proof: cited evidence","Caveat: limit of the claim","CTA: low-friction question"];
+const DEFAULT_POST = `Your board wants growth. Your runway wants cash first.
+
+Most CFOs we talk to treat billing terms as a sales detail. In a study of 140 SaaS companies, annual prepay lifted cash collected in Q1 by 18% [E1], and invoice-to-cash dropped from 41 days to 9 [E4].
+
+The catch: discounts above 12% to win prepay reduced year-2 net revenue retention [E2]. Cash now, at the cost of expansion later.
+
+We've redesigned billing terms with 30+ finance teams since 2021 [E3]. The pattern is consistent: a smaller prepay incentive, offered at renewal, captures most of the cash effect without the retention cost.
+
+What discount are you offering for annual prepay today?`;
+const DEFAULT_RULES = {
+  version:"1.3",
+  post_type:"insight_post",
+  max_chars:1300,
+  min_paragraphs:4,
+  max_paragraphs:6,
+  max_hook_words:16,
+  hook_must_contain_any:["board","runway","cash","margin","budget"],
+  banned_words:["revolutionize","game-changer","synergy","cutting-edge","unlock","10x"],
+  max_exclamation_marks:0,
+  every_number_needs_citation:true,
+  allowed_citations:["E1","E2","E3","E4"],
+  must_end_with_question:true,
+  must_include_caveat_marker_any:["catch","caveat","but","however","the cost"]
+};
+const REVIEW = [
+  ["sup","“annual prepay lifted cash collected in Q1 by 18%”","Supported by E1 (exact figure, same population of 140 firms)."],
+  ["sup","“invoice-to-cash dropped from 41 days to 9”","Supported by E4."],
+  ["sup","“discounts above 12% … reduced year-2 net revenue retention”","Supported by E2; post correctly frames it as a trade-off."],
+  ["uns","“a smaller prepay incentive, offered at renewal, captures most of the cash effect”","Not stated in E1–E4. Interpretation presented as a finding → rewrite as the client's view or cite the study section."]
+];
+const SCORES = [["Ideal-buyer relevance",0.91],["Client subject-matter expertise",0.86],["Writing quality",0.84],["Unsupported claims","1 flagged"]];
+
+const GOLD = [
+  {name:"Approved — insight post (above)",expect:"pass",text:()=>DEFAULT_POST},
+  {name:"Approved — short benchmark post",expect:"pass",text:()=>`Cash runway sets the pace, not the board.
+
+Across 140 SaaS companies, invoice-to-cash averaged 41 days on monthly billing [E4].
+
+Annual prepay cut that to 9 days [E4] and lifted Q1 cash collected by 18% [E1].
+
+The cost: discounts above 12% hurt year-2 retention [E2].
+
+Where does your prepay discount sit?`},
+  {name:"Known-bad — hype words",expect:"fail",text:()=>`Unlock 10x cash with this game-changer!
+
+Annual prepay is the cutting-edge way to grow [E1].
+
+It works for everyone.
+
+Every CFO should do it.
+
+Ready to revolutionize your billing?`},
+  {name:"Known-bad — uncited number",expect:"fail",text:()=>`Your board wants growth. Your runway wants cash.
+
+Prepay lifts Q1 cash by 25% for most companies.
+
+The catch: deep discounts can hurt retention [E2].
+
+We've seen this across many teams.
+
+What's your current prepay discount?`},
+  {name:"Known-bad — no question, too long hook",expect:"fail",text:()=>`When you think about all the different ways a finance team can improve its cash position over the next few quarters, billing terms rarely come first.
+
+Annual prepay lifted Q1 cash by 18% [E1].
+
+The catch: discounts above 12% hurt year-2 retention [E2].
+
+Invoice-to-cash fell from 41 to 9 days [E4].
+
+Worth a look.`},
+  {name:"Known-bad — fake citation",expect:"fail",text:()=>`Your board wants growth. Your runway wants cash.
+
+Annual prepay lifted Q1 cash by 18% [E1] and churn fell 30% [E7].
+
+The catch: discounts above 12% hurt year-2 retention [E2].
+
+We've advised 30+ finance teams [E3].
+
+What's your prepay discount today?`}
+];
+
+const $=s=>document.querySelector(s);
+function esc(s){return s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]))}
+
+function validate(text, R){
+  const res=[]; const add=(rule,ok,detail)=>res.push({rule,ok,detail});
+  const paras=text.split(/\n\s*\n/).map(p=>p.trim()).filter(Boolean);
+  add("Length ≤ "+R.max_chars+" chars", text.length<=R.max_chars, text.length+" chars");
+  add("Paragraphs "+R.min_paragraphs+"–"+R.max_paragraphs, paras.length>=R.min_paragraphs&&paras.length<=R.max_paragraphs, paras.length+" paragraphs");
+  const hook=(paras[0]||"").split(/(?<=[.?!])\s/)[0]||"";
+  const hw=hook.split(/\s+/).filter(Boolean).length;
+  add("Hook ≤ "+R.max_hook_words+" words", hw<=R.max_hook_words, hw+" words: “"+hook.slice(0,70)+(hook.length>70?"…":"")+"”");
+  const kw=(R.hook_must_contain_any||[]).filter(w=>new RegExp("\\b"+w+"\\b","i").test(paras[0]||""));
+  add("Hook names a buyer tension word", kw.length>0, kw.length?"found: "+kw.join(", "):"none of: "+(R.hook_must_contain_any||[]).join(", "));
+  const banned=(R.banned_words||[]).filter(w=>new RegExp("\\b"+w.replace(/[-]/g,"[- ]?")+"\\b","i").test(text));
+  add("No banned words", banned.length===0, banned.length?"found: "+banned.join(", "):"clean");
+  const ex=(text.match(/!/g)||[]).length;
+  add("Exclamation marks ≤ "+R.max_exclamation_marks, ex<=R.max_exclamation_marks, ex+" found");
+  const cites=[...text.matchAll(/\[(E\d+)\]/g)].map(m=>m[1]);
+  const badc=cites.filter(c=>!(R.allowed_citations||[]).includes(c));
+  add("Citations exist in evidence", badc.length===0, badc.length?"unknown: "+[...new Set(badc)].join(", "):(cites.length?[...new Set(cites)].join(", "):"no citations"));
+  if(R.every_number_needs_citation){
+    const sentences=text.split(/(?<=[.?!])\s+/);
+    const unc=sentences.filter(s=>/\d/.test(s.replace(/\[E\d+\]/g,""))&&!/\[E\d+\]/.test(s));
+    add("Every number is cited", unc.length===0, unc.length?unc.length+" uncited: “"+unc[0].trim().slice(0,60)+"…”":"all numbers cited");
+  }
+  if(R.must_include_caveat_marker_any){
+    const cv=R.must_include_caveat_marker_any.filter(w=>new RegExp("\\b"+w+"\\b","i").test(text));
+    add("States a limit / caveat", cv.length>0, cv.length?"marker: "+cv[0]:"no caveat found");
+  }
+  if(R.must_end_with_question){ add("Ends with one question (CTA)", /\?\s*$/.test(text.trim()), text.trim().slice(-40)); }
+  return res;
+}
+
+let RULES=JSON.parse(JSON.stringify(DEFAULT_RULES));
+function renderStatic(){
+  $("#buyer").innerHTML=BUYER.map(([k,v])=>`<div style="font-size:14px;margin:3px 0"><b>${k}:</b> ${esc(v)}</div>`).join("");
+  $("#evidence").innerHTML=Object.entries(EVIDENCE).map(([k,v])=>`<div style="font-size:14px;margin:4px 0"><span class="pill">${k}</span>${esc(v)}</div>`).join("");
+  $("#selection tbody").innerHTML=FACTS.map(([f,s,u])=>`<tr><td>${esc(f)}</td><td><div class="bar"><i style="width:${s*100}%"></i></div><span class="score">${s.toFixed(2)}</span></td><td class="${u?"ok":"bad"}">${u?"✓ used":"✗ below 0.50"}</td></tr>`).join("");
+  $("#structure").innerHTML=STRUCTURE.map(s=>`<span>${s}</span>`).join("");
+  $("#review").innerHTML=`<div style="margin-bottom:8px">${SCORES.map(([k,v])=>`<span class="pill">${k}: <b>${v}</b></span>`).join("")}</div>`+
+    REVIEW.map(([t,c,why])=>`<div class="claim ${t}"><b class="${t==="sup"?"ok":"bad"}">${t==="sup"?"Supported":"Unsupported"}</b> — ${esc(c)}<br><span style="color:var(--muted);font-size:13px">${esc(why)}</span></div>`).join("")+
+    `<p style="font-size:13px;color:var(--muted)">Verdict: <b class="warn">revise 1 claim</b> before publishing. Reviewer output is schema-validated (claim, evidence_id, verdict, reason).</p>`;
+}
+function renderChecks(){
+  const r=validate($("#post").value,RULES);
+  const pass=r.filter(x=>x.ok).length;
+  $("#summary").innerHTML=`<span class="${pass===r.length?"ok":"bad"} score">${pass}/${r.length} construction rules pass</span>`;
+  $("#checks tbody").innerHTML=r.map(x=>`<tr><td>${x.rule}</td><td class="${x.ok?"ok":"bad"}">${x.ok?"PASS":"FAIL"}</td><td style="color:var(--muted)">${esc(x.detail)}</td></tr>`).join("");
+}
+function renderReg(){
+  let good=0;
+  $("#reg tbody").innerHTML=GOLD.map(g=>{
+    const r=validate(g.text(),RULES); const fails=r.filter(x=>!x.ok).map(x=>x.rule);
+    const now=fails.length?"fail":"pass"; const ok=now===g.expect; if(ok)good++;
+    return `<tr><td>${g.name}</td><td>${g.expect}</td><td class="${now==="pass"?"ok":"bad"}">${now}</td><td style="color:var(--muted)">${fails.join("; ")||"—"}</td><td class="${ok?"ok":"bad"}"><b>${ok?"as expected":"REGRESSION"}</b></td></tr>`;
+  }).join("");
+  $("#regsum").innerHTML=`<span class="${good===GOLD.length?"ok":"bad"} score">${good}/${GOLD.length} cases as expected</span>`;
+}
+function onRules(){
+  try{ RULES=JSON.parse($("#rules").value); $("#ruleerr").textContent=""; $("#ver").textContent="v"+(RULES.version||"?")+(JSON.stringify(RULES)!==JSON.stringify(DEFAULT_RULES)?" (edited)":""); }
+  catch(e){ $("#ruleerr").textContent="Config not valid JSON: "+e.message; return; }
+  renderChecks(); renderReg();
+}
+$("#post").value=DEFAULT_POST;
+$("#rules").value=JSON.stringify(DEFAULT_RULES,null,2);
+$("#post").addEventListener("input",renderChecks);
+$("#rules").addEventListener("input",onRules);
+$("#reset").addEventListener("click",()=>{$("#post").value=DEFAULT_POST;renderChecks();});
+renderStatic(); renderChecks(); renderReg();
+</script>
+</body>
+</html>

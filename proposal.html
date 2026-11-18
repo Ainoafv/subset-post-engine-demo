@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Technical proposal — Subset Post Engineering</title>
+<style>
+:root{--bg:#f7f7f5;--card:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e3e3e0;--accent:#2f5bea;--code:#f1f1ee}
+@media (prefers-color-scheme:dark){:root{--bg:#141416;--card:#1c1c1f;--ink:#ececee;--muted:#9a9aa2;--line:#2c2c31;--accent:#7b9bff;--code:#232327}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,Segoe UI,Inter,Roboto,sans-serif}
+.wrap{max-width:860px;margin:auto;padding:32px 16px 56px}
+h1{font-size:28px;margin:0 0 4px}h2{font-size:20px;margin:34px 0 10px;padding-top:6px;border-top:1px solid var(--line)}h3{font-size:16px;margin:18px 0 6px}
+.sub{color:var(--muted)}
+.box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:12px 0}
+table{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}td,th{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:13px}
+pre{background:var(--code);border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;font-size:13px;line-height:1.45}
+a{color:var(--accent)}
+li{margin:4px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Turning the Post Engineering Brain into a working system</h1>
+<p class="sub">Technical proposal for Subset · prepared by Ainoa F., AI &amp; Data Engineer · <a href="index.html">working demo of one slice</a></p>
+
+<div class="box">
+<b>Summary.</b> Treat the Brain as a <b>grammar with a type system</b>: elements, attributes and rules become a versioned, machine-checkable specification. Generation runs in stages under that spec, so the model only fills slots it is allowed to fill. Quality is split in two, as you described: <b>deterministic validators</b> for everything objectively testable (this is how 99.99% construction compliance is reached and measured) and <b>independent, evidence-grounded reviewers</b> for buyer relevance, expertise and writing quality, calibrated against your expert-reviewed examples. Every rule change runs a regression suite before it ships. Start with a <b>paid technical engagement of ~2 weeks</b> that delivers a gap report on the Brain, an executable spec for one or two post types and a working prototype.
+</div>
+
+<h2>1. Architecture</h2>
+<pre>
+ Client material + Buyer DNA
+            │
+            ▼
+ [1] Information selection ── scores each fact for this buyer (logged, explainable)
+            │
+            ▼
+ [2] Structure selection ──── picks an approved post / sentence / clause structure
+            │
+            ▼
+ [3] Slot filling ─────────── LLM with schema-constrained output, one slot at a time
+            │
+            ▼
+ [4] Deterministic validators ── every objectively testable rule, in code
+            │        └─ fail → targeted repair of the failing slot (bounded retries)
+            ▼
+ [5] Independent reviewers ──── relevance · expertise · writing quality · claim support
+            │                    (separate prompts/models, evidence citations required)
+            ▼
+ [6] Decision + audit trail ─── publish / revise / human review, with every score and source
+</pre>
+<p>The <b>specification</b> sits beside the pipeline, not inside prompts:</p>
+<ul>
+<li><b>Schemas</b> for each element and sub-element (Buyer DNA attributes, information types, post/sentence/clause types, word categories), with typed attributes and explicit dependencies.</li>
+<li><b>Rules as data</b>: constraints, formulas, exceptions and precedence in versioned config files (YAML in Git, or a small admin UI later). Your team edits rules; the engine reads them. Routine changes need no code.</li>
+<li><b>Gold set</b>: expert-approved posts and known-bad cases, each tagged with the rules it exercises. It runs in CI on every rule or prompt change, and the report shows exactly what moved.</li>
+</ul>
+
+<h2>2. How quality is measured</h2>
+<table>
+<tr><th>Requirement</th><th>Mechanism</th><th>Metric</th></tr>
+<tr><td>Construction rules (structure, clause formulas, word categories, banned constructions, length)</td><td>Deterministic validators in code, plus targeted repair of failing slots</td><td>Rule-level pass rate over a large generated sample, per rule and per post type. Target 99.99% on testable rules, reported with sample size</td></tr>
+<tr><td>Claims are true and supported</td><td>Reviewer must map every claim to a source passage; unmapped claims are flagged; numbers must carry a citation (checked in code)</td><td>Unsupported-claim rate; precision/recall of the reviewer against expert labels</td></tr>
+<tr><td>Ideal-buyer relevance</td><td>Independent reviewer scoring against the Buyer DNA, with a rubric derived from your attributes</td><td>Agreement with expert scores (e.g. Spearman / Cohen's κ), tracked per release</td></tr>
+<tr><td>Client subject-matter expertise</td><td>Reviewer checks that the post uses the client's specific evidence and mechanisms, not generic advice</td><td>Agreement with expert-reviewed examples</td></tr>
+<tr><td>Writing quality</td><td>Reviewer rubric plus deterministic style checks</td><td>Agreement with expert scores; style-rule pass rate</td></tr>
+</table>
+<p>Reviewers are kept <b>independent</b> from generation (separate prompts, optionally a different model) and are themselves evaluated: a reviewer that disagrees with your experts is a bug to fix, not a score to trust.</p>
+
+<h2>3. What I expect to find in the Brain (gap review)</h2>
+<p>From the posting, these are the questions I'd expect the first review to answer. Each becomes either a rule, an exception or an explicit "human decides".</p>
+<ul>
+<li><b>Precedence</b>: when two rules conflict (e.g. a buyer attribute pushes one information type, a quality standard limits it), which wins?</li>
+<li><b>Importance formula</b>: how exactly does each of the 20 Buyer DNA attributes weight information selection? Are weights fixed, per buyer, or per post type?</li>
+<li><b>Exceptions</b>: post types or buyers where a construction rule does not apply.</li>
+<li><b>Testability</b>: which quality standards are objectively testable (→ validators) and which need judgment (→ reviewers with a rubric)?</li>
+<li><b>Evidence granularity</b>: what counts as support for a claim, and how fine-grained client expertise sources need to be.</li>
+<li><b>Versioning</b>: who can change which rules, and how a change is approved before it reaches production.</li>
+</ul>
+
+<h2>4. Plan</h2>
+<table>
+<tr><th>Phase</th><th>What you get</th><th>Time</th></tr>
+<tr><td><b>0 · Paid technical engagement</b></td><td>
+Gap report on the Brain (missing dependencies, formulas, exceptions, validation rules) ·
+executable spec for 1–2 post types ·
+working prototype: staged generation + validators + one independent reviewer + regression suite on a first gold set ·
+notes on your AWS partner's architecture (where the engine plugs in, what to log, how audits and weekly reports can reuse it)</td><td>~2 weeks, 30–40 h at $50/h, capped</td></tr>
+<tr><td><b>1 · Full spec coverage</b></td><td>All post types and rule families; reviewer calibration against your expert set; rule editing workflow for your team; CI regression reports</td><td>3–4 weeks</td></tr>
+<tr><td><b>2 · Production</b></td><td>Integration with your AWS stack alongside your partner; monitoring of pass rates and reviewer drift; cost per post tracked</td><td>to scope after Phase 1</td></tr>
+</table>
+
+<h2>5. Stack</h2>
+<p>Python, typed schemas for every element and LLM output, rules in versioned config, provider-agnostic LLM layer (Claude / OpenAI), pytest-based regression suite in CI, structured logs of every decision and score. Designed to run on your AWS setup with your development partner; I'd review their architecture as part of Phase 0.</p>
+
+<h2>6. Why me</h2>
+<ul>
+<li>I build LLM systems on regulated health data in my day job, where an unsupported claim is a real problem. Evidence-grounding, audit trails and evaluation are my default, not an add-on.</li>
+<li>I've built a structured document-generation system with rules in configuration and validation in code, and agent evaluation harnesses (<a href="https://ainoafv.github.io/gaia-agent-benchmark-demo/">example</a>). Pattern I follow: <a href="https://ainoafv.github.io/agent-engineering-demo/">the model proposes, the code decides</a>.</li>
+<li>Top Rated on Upwork, 100% Job Success. Based in Spain (CET), overlapping with Atlantic-time mornings.</li>
+</ul>
+
+<p class="sub" style="margin-top:28px">See the working slice: <a href="index.html">demo</a> — edit the rules or the post and the validators and regression suite re-run in your browser.</p>
+</div>
+</body>
+</html>
